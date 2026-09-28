@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mot Mystère - L'automne</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Kalam:wght@700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .font-handwriting { font-family: 'Kalam', cursive; }
+        
+        /* Conteneur d'aspect A4 parfait pour l'exportation et l'impression */
+        .fiche-container {
+            width: 100%;
+            max-width: 800px; /* Largeur de base optimisée pour l'écran */
+            aspect-ratio: 1 / 1.414; /* Ratio exact d'une feuille A4 */
+            background: white;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            position: relative;
+            margin: 0 auto;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Animation pour erreur de sélection */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-4px) rotate(-2deg); }
+            50% { transform: translateX(4px) rotate(2deg); }
+            75% { transform: translateX(-4px) rotate(-2deg); }
+        }
+        .animate-shake {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+        
+        /* Esthétique de la grille */
+        .grid-cell { transition: all 0.2s ease-in-out; }
+        .grid-cell:hover:not(.locked) { transform: scale(1.05); z-index: 10; box-shadow: 0 0 5px rgba(0,0,0,0.2); }
+        
+        /* Styles spécifiques pour le corrigé */
+        .teacher-mode .mystery-cell {
+            background-color: #ffedd5 !important;
+            color: #ea580c !important;
+            font-weight: 800 !important;
+            border: 2px solid #ea580c !important;
+            transform: scale(1.05);
+            z-index: 5;
+        }
+        .teacher-mode .word-cell {
+            background-color: #f3f4f6 !important;
+            color: #9ca3af !important;
+        }
+        
+        /* Cacher la scrollbar mais garder le scroll si l'écran est très petit */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="min-h-screen py-6 px-4 flex flex-col items-center">
+
+    <div class="mb-6 flex flex-wrap gap-4 justify-center items-center max-w-4xl w-full" data-html2canvas-ignore="true">
+        <div class="bg-white p-1 rounded-xl shadow-sm flex gap-1">
+            <button id="btn-tab-student" class="px-6 py-2 rounded-lg text-sm font-bold bg-orange-500 text-white shadow-sm transition-colors" onclick="switchTab('student')">
+                👦 Onglet 1 : Activité Élève
+            </button>
+            <button id="btn-tab-teacher" class="px-6 py-2 rounded-lg text-sm font-bold bg-white text-gray-600 hover:bg-gray-100 transition-colors" onclick="switchTab('teacher')">
+                👨‍🏫 Onglet 2 : Corrigé
+            </button>
+        </div>
+        <button id="btn-download" class="px-6 py-2 rounded-xl text-sm font-bold bg-gray-800 text-white shadow-md hover:bg-gray-700 flex items-center gap-2 transition-all" onclick="downloadPNG()">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            <span id="download-text">Télécharger l'Activité (PNG)</span>
+        </button>
+    </div>
+
+    <div id="fiche-wrapper" class="w-full max-w-4xl flex justify-center hide-scrollbar">
+        <div id="fiche-activite" class="fiche-container p-8 sm:p-10 border border-gray-200">
+            
+            <!-- Décorations SVG (Feuilles d'automne) -->
+            <svg class="absolute top-4 left-4 w-12 h-12 text-orange-400 opacity-20" fill="currentColor" viewBox="0 0 24 24"><path d="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 7.05,10.87 9.31,13.25C11.56,15.63 12.37,17.25 12,19C12.44,18.96 12.87,18.84 13.26,18.62L15,21L16.74,18.62C18.64,17.5 20,15.4 20,13C20,11.23 19.34,9.66 18.26,8.44C18,8.23 17.5,8.08 17,8Z" /></svg>
+            <svg class="absolute bottom-4 right-4 w-16 h-16 text-yellow-500 opacity-20 transform rotate-180" fill="currentColor" viewBox="0 0 24 24"><path d="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 7.05,10.87 9.31,13.25C11.56,15.63 12.37,17.25 12,19C12.44,18.96 12.87,18.84 13.26,18.62L15,21L16.74,18.62C18.64,17.5 20,15.4 20,13C20,11.23 19.34,9.66 18.26,8.44C18,8.23 17.5,8.08 17,8Z" /></svg>
+
+            <!-- En-tête -->
+            <div class="flex justify-between items-start border-b-2 border-gray-800 pb-4 mb-6">
+                <div class="flex-1 space-y-2">
+                    <div class="flex items-end gap-2">
+                        <span class="font-bold text-gray-700">Prénom :</span>
+                        <div class="border-b border-gray-400 border-dotted flex-1 h-5"></div>
+                    </div>
+                    <div class="flex items-end gap-2">
+                        <span class="font-bold text-gray-700">Date :</span>
+                        <div class="border-b border-gray-400 border-dotted flex-1 h-5"></div>
+                    </div>
+                </div>
+                <div class="flex flex-col items-end gap-2 ml-8">
+                    <div class="bg-gray-800 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase flex items-center gap-1">
+                        <span>⭐ Niveau : 4e Année</span>
+                    </div>
+                    <div class="text-gray-600 text-xs font-bold flex items-center gap-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Durée : 15 min
+                    </div>
+                </div>
+            </div>
+
+            <!-- Titre et Consignes -->
+            <div class="text-center mb-6">
+                <h1 class="text-3xl md:text-4xl font-extrabold text-orange-600 tracking-tight font-handwriting mb-3">MOT MYSTÈRE DE L'AUTOMNE</h1>
+                <div class="bg-orange-50 border border-orange-200 rounded-xl p-4 text-sm md:text-base text-gray-800 text-left relative shadow-sm">
+                    <div class="absolute -top-3 -left-3 bg-white rounded-full p-1 border border-orange-200">
+                        <span class="text-xl">🍁</span>
+                    </div>
+                    <p class="mb-1 leading-tight"><strong class="text-orange-700">Consigne :</strong> Trouve et sélectionne tous les mots cachés dans la grille. Ils peuvent se lire horizontalement (👉) ou verticalement (👇).</p>
+                    <p class="text-xs md:text-sm text-gray-600 italic">Attention : tu ne peux pas sélectionner les lettres du mot mystère tant que tu n'as pas trouvé tous les autres mots ! Si tu te trompes, reclique sur une case pour la désélectionner.</p>
+                </div>
+            </div>
+
+            <!-- Zone Centrale: Grille et Mots -->
+            <div class="flex flex-col flex-1 justify-between min-h-0">
+                
+                <!-- Grille -->
+                <div class="flex justify-center mb-6">
+                    <div id="grid-container" class="grid gap-0 border-2 border-gray-800 bg-gray-800 shadow-sm" style="grid-template-columns: repeat(12, minmax(0, 1fr)); padding: 2px;">
+                        <!-- Les cases seront générées ici par JS -->
+                    </div>
+                </div>
+
+                <!-- Liste des mots -->
+                <div class="bg-white border-2 border-gray-200 rounded-xl p-4 shadow-sm mb-4">
+                    <h2 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-3 text-center">Mots à trouver (20)</h2>
+                    <div id="word-list" class="grid grid-cols-4 gap-x-2 gap-y-2 text-xs md:text-sm font-semibold text-gray-700">
+                        <!-- Mots générés par JS -->
+                    </div>
+                </div>
+
+                <!-- Phrase Mystère -->
+                <div class="mt-auto pt-4 border-t-2 border-dashed border-gray-300">
+                    <h2 class="text-center font-bold text-gray-600 mb-3 uppercase tracking-wide text-sm">Phrase mystère finale :</h2>
+                    <div id="mystery-phrase-container" class="flex flex-wrap justify-center gap-y-3 gap-x-1">
+                        <!-- Slots de phrase générés par JS -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Victoire -->
+    <div id="win-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 transition-opacity opacity-0" data-html2canvas-ignore="true">
+        <div class="bg-white rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl transform scale-95 transition-transform duration-300" id="win-modal-content">
+            <div class="text-6xl mb-4">🏆</div>
+            <h2 class="text-2xl font-extrabold text-orange-600 mb-2">Félicitations !</h2>
+            <p class="text-gray-600 mb-6">Tu as trouvé tous les mots ! Les lettres restantes sont maintenant déverrouillées. Découvre la phrase mystère à la fin de la fiche.</p>
+            <button onclick="closeWinModal()" class="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold transition-colors">Continuer</button>
+        </div>
+    </div>
+
+    <script>
+        // --------------------------------------------------------
+        // DONNÉES PRÉ-CALCULÉES & PARAMÉTRAGE STRICT
+        // --------------------------------------------------------
+        const GRID_SIZE = 12;
+        let isTeacherMode = false;
+        let gameComplete = false;
+        let modalShown = false;
+
+        // Liste exacte des mots et coordonnées de placement pour un encadrement infaillible (12x12).
+        const WORDS = [
+            { original: "BICYCLETTE", clean: "BICYCLETTE", r: 0, c: 0, dir: "H" },
+            { original: "ANNONCER",   clean: "ANNONCER",   r: 1, c: 0, dir: "H" },
+            { original: "CARTON",     clean: "CARTON",     r: 2, c: 0, dir: "H" },
+            { original: "CASSER",     clean: "CASSER",     r: 3, c: 0, dir: "H" },
+            { original: "CORDE",      clean: "CORDE",      r: 4, c: 0, dir: "H" },
+            { original: "COUPE",      clean: "COUPE",      r: 5, c: 0, dir: "H" },
+            { original: "CRÉER",      clean: "CREER",      r: 6, c: 0, dir: "H" },
+            { original: "DÉCIDER",    clean: "DECIDER",    r: 7, c: 0, dir: "H" },
+            { original: "DÉCLARER",   clean: "DECLARER",   r: 8, c: 0, dir: "H" },
+            { original: "DOUCEUR",    clean: "DOUCEUR",    r: 9, c: 0, dir: "H" },
+            { original: "ESCALIER",   clean: "ESCALIER",   r: 10, c: 0, dir: "H" },
+            { original: "ESPACE",     clean: "ESPACE",     r: 11, c: 0, dir: "H" },
+            { original: "FAÇON",      clean: "FACON",      r: 2, c: 6, dir: "V" },
+            { original: "PLACER",     clean: "PLACER",     r: 2, c: 7, dir: "V" },
+            { original: "SECONDE",    clean: "SECONDE",    r: 2, c: 8, dir: "V" },
+            { original: "FEUILLE",    clean: "FEUILLE",    r: 2, c: 9, dir: "V" },
+            { original: "POMMIER",    clean: "POMMIER",    r: 2, c: 10, dir: "V" },
+            { original: "RAMASSER",   clean: "RAMASSER",   r: 2, c: 11, dir: "V" },
+            { original: "ÇA",         clean: "CA",         r: 10, c: 8, dir: "V" },
+            { original: "CE",         clean: "CE",         r: 10, c: 9, dir: "V" }
+        ];
+
+        // Structure exacte de la phrase mystère ("C'EST NOTRE BEL AUTOMNE") = 19 lettres + formatage.
+        const MYSTERY_SLOTS = [
+            { type: 'char', r: 0, c: 10, char: 'C' },
+            { type: 'text', val: "'" },
+            { type: 'char', r: 0, c: 11, char: 'E' },
+            { type: 'char', r: 1, c: 8,  char: 'S' },
+            { type: 'char', r: 1, c: 9,  char: 'T' },
+            { type: 'space' },
+            { type: 'char', r: 1, c: 10, char: 'N' },
+            { type: 'char', r: 1, c: 11, char: 'O' },
+            { type: 'char', r: 4, c: 5,  char: 'T' },
+            { type: 'char', r: 5, c: 5,  char: 'R' },
+            { type: 'char', r: 6, c: 5,  char: 'E' },
+            { type: 'space' },
+            { type: 'char', r: 9, c: 7,  char: 'B' },
+            { type: 'char', r: 9, c: 8,  char: 'E' },
+            { type: 'char', r: 9, c: 9,  char: 'L' },
+            { type: 'space' },
+            { type: 'char', r: 9, c: 10, char: 'A' },
+            { type: 'char', r: 10, c: 10, char: 'U' },
+            { type: 'char', r: 10, c: 11, char: 'T' },
+            { type: 'char', r: 11, c: 6,  char: 'O' },
+            { type: 'char', r: 11, c: 7,  char: 'M' },
+            { type: 'char', r: 11, c: 10, char: 'N' },
+            { type: 'char', r: 11, c: 11, char: 'E' }
+        ];
+
+        // État de l'application
+        const selectedCells = new Set(); 
+        const foundWords = new Set();
+        let gridData = [];
+
+        function initGridData() {
+            // Création de la matrice 12x12
+            for(let r=0; r<GRID_SIZE; r++) {
+                gridData[r] = [];
+                for(let c=0; c<GRID_SIZE; c++) {
+                    gridData[r][c] = {
+                        char: '',
+                        isMystery: false,
+                        words: [],
+                        r: r,
+                        c: c
+                    };
+                }
+            }
+
+            // Placement des mots
+            WORDS.forEach((w, index) => {
+                for(let i=0; i<w.clean.length; i++) {
+                    let currR = w.dir === "H" ? w.r : w.r + i;
+                    let currC = w.dir === "H" ? w.c + i : w.c;
+                    gridData[currR][currC].char = w.clean[i];
+                    gridData[currR][currC].words.push(index);
+                }
+            });
+
+            // Placement des lettres mystères
+            MYSTERY_SLOTS.filter(s => s.type === 'char').forEach(s => {
+                gridData[s.r][s.c].char = s.char;
+                gridData[s.r][s.c].isMystery = true;
+            });
+        }
+
+        function renderGrid() {
+            const container = document.getElementById('grid-container');
+            container.innerHTML = '';
+
+            for(let r=0; r<GRID_SIZE; r++) {
+                for(let c=0; c<GRID_SIZE; c++) {
+                    const cellData = gridData[r][c];
+                    const cellDiv = document.createElement('div');
+                    cellDiv.className = `grid-cell bg-white w-7 h-7 sm:w-9 sm:h-9 md:w-11 md:h-11 flex items-center justify-center font-bold text-gray-700 text-sm sm:text-base md:text-lg cursor-pointer select-none border-b border-r border-gray-200`;
+                    // Retrait des bordures droites/basses sur la dernière ligne/colonne pour le style
+                    if (c === GRID_SIZE - 1) cellDiv.classList.remove('border-r');
+                    if (r === GRID_SIZE - 1) cellDiv.classList.remove('border-b');
+
+                    cellDiv.textContent = cellData.char;
+                    cellDiv.id = `cell-${r}-${c}`;
+                    cellDiv.dataset.r = r;
+                    cellDiv.dataset.c = c;
+                    cellDiv.dataset.isMystery = cellData.isMystery;
+
+                    cellDiv.onclick = () => handleCellClick(r, c);
+                    container.appendChild(cellDiv);
+                }
+            }
+        }
+
+        function renderWordList() {
+            const container = document.getElementById('word-list');
+            container.innerHTML = '';
+            
+            // Tri alphabétique pour la présentation
+            const sortedWords = [...WORDS].sort((a, b) => a.original.localeCompare(b.original));
+
+            sortedWords.forEach(w => {
+                const wordIndex = WORDS.findIndex(ref => ref.clean === w.clean);
+                const div = document.createElement('div');
+                div.className = `word-item flex items-center gap-2 transition-all p-1 rounded ${foundWords.has(wordIndex) ? 'opacity-40 line-through text-gray-400 bg-gray-50' : 'text-gray-700'}`;
+                div.id = `word-list-${wordIndex}`;
+                
+                const icon = document.createElement('span');
+                icon.className = `w-4 h-4 rounded-full border flex items-center justify-center text-[10px] ${foundWords.has(wordIndex) ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300'}`;
+                icon.innerHTML = foundWords.has(wordIndex) ? '✓' : '';
+                
+                const text = document.createElement('span');
+                text.textContent = w.original;
+                
+                div.appendChild(icon);
+                div.appendChild(text);
+                container.appendChild(div);
+            });
+        }
+
+        function renderMysteryPhrase() {
+            const container = document.getElementById('mystery-phrase-container');
+            container.innerHTML = '';
+            
+            MYSTERY_SLOTS.forEach(slot => {
+                if (slot.type === 'space') {
+                    const space = document.createElement('div');
+                    space.className = 'w-3 sm:w-6';
+                    container.appendChild(space);
+                } else if (slot.type === 'text') {
+                    const txt = document.createElement('div');
+                    txt.className = 'font-bold text-gray-800 text-lg sm:text-xl flex items-end pb-1';
+                    txt.textContent = slot.val;
+                    container.appendChild(txt);
+                } else if (slot.type === 'char') {
+                    const box = document.createElement('div');
+                    const cellId = `${slot.r}-${slot.c}`;
+                    const isSelected = selectedCells.has(cellId);
+                    const showChar = isTeacherMode || (gameComplete && isSelected);
+                    
+                    box.className = `w-6 h-6 sm:w-8 sm:h-8 md:w-9 md:h-9 border-b-2 sm:border-b-4 flex items-center justify-center font-bold text-base sm:text-lg md:text-xl transition-all ${showChar ? 'border-orange-500 text-orange-600 bg-orange-50' : 'border-gray-300 text-transparent'}`;
+                    box.id = `mystery-slot-${slot.r}-${slot.c}`;
+                    box.textContent = slot.char;
+                    container.appendChild(box);
+                }
+            });
+        }
+
+        function handleCellClick(r, c) {
+            if (isTeacherMode) return; // Interactions bloquées en mode corrigé
+
+            const cellId = `${r}-${c}`;
+            const cellData = gridData[r][c];
+            const cellElement = document.getElementById(`cell-${r}-${c}`);
+
+            // CONSIGNE STRICTE : Bloquer sélection si lettre mystère et jeu non terminé
+            if (cellData.isMystery && !gameComplete && !selectedCells.has(cellId)) {
+                // Animation d'erreur
+                cellElement.classList.add('animate-shake', 'bg-red-200', 'text-red-700');
+                setTimeout(() => {
+                    cellElement.classList.remove('animate-shake', 'bg-red-200', 'text-red-700');
+                }, 400);
+                return;
+            }
+
+            // Bascule de sélection (permet de désélectionner si erreur)
+            if (selectedCells.has(cellId)) {
+                selectedCells.delete(cellId);
+            } else {
+                selectedCells.add(cellId);
+            }
+
+            updateUI();
+            checkGameState();
+        }
+
+        function updateUI() {
+            // Mettre à jour l'apparence des cases de la grille
+            for(let r=0; r<GRID_SIZE; r++) {
+                for(let c=0; c<GRID_SIZE; c++) {
+                    const cellId = `${r}-${c}`;
+                    const el = document.getElementById(`cell-${r}-${c}`);
+                    
+                    // Reset des classes dynamiques
+                    el.className = `grid-cell bg-white w-7 h-7 sm:w-9 sm:h-9 md:w-11 md:h-11 flex items-center justify-center font-bold text-sm sm:text-base md:text-lg cursor-pointer select-none border-b border-r border-gray-200 text-gray-700`;
+                    if (c === GRID_SIZE - 1) el.classList.remove('border-r');
+                    if (r === GRID_SIZE - 1) el.classList.remove('border-b');
+
+                    if (isTeacherMode) {
+                        const cellData = gridData[r][c];
+                        if (cellData.isMystery) {
+                            el.classList.add('mystery-cell');
+                        } else if (cellData.words.length > 0) {
+                            el.classList.add('word-cell');
+                        }
+                        // Les cases vides (normalement 0) resteraient blanches
+                    } else {
+                        if (selectedCells.has(cellId)) {
+                            // Style quand sélectionné par l'élève
+                            if (gameComplete && gridData[r][c].isMystery) {
+                                el.classList.add('bg-orange-200', 'text-orange-800', 'scale-105', 'shadow-sm', 'locked');
+                            } else {
+                                el.classList.add('bg-yellow-200', 'text-gray-900', 'shadow-inner');
+                            }
+                        }
+                    }
+                }
+            }
+            
+            renderWordList();
+            renderMysteryPhrase();
+        }
+
+        function checkGameState() {
+            if (isTeacherMode) return;
+
+            let newlyFoundCount = 0;
+            
+            // Vérifier quels mots sont trouvés
+            WORDS.forEach((w, index) => {
+                let isFound = true;
+                for(let i=0; i<w.clean.length; i++) {
+                    let currR = w.dir === "H" ? w.r : w.r + i;
+                    let currC = w.dir === "H" ? w.c + i : w.c;
+                    if (!selectedCells.has(`${currR}-${currC}`)) {
+                        isFound = false;
+                        break;
+                    }
+                }
+                
+                if (isFound && !foundWords.has(index)) {
+                    foundWords.add(index);
+                    newlyFoundCount++;
+                } else if (!isFound && foundWords.has(index)) {
+                    foundWords.delete(index); // Permet d'annuler si l'élève désélectionne une lettre valide
+                }
+            });
+
+            if (newlyFoundCount > 0) {
+                updateUI(); // Maj Liste des mots
+            }
+
+            // Condition de victoire
+            if (foundWords.size === WORDS.length && !gameComplete) {
+                gameComplete = true;
+                if (!modalShown) {
+                    showWinModal();
+                    modalShown = true;
+                }
+                updateUI(); // Maj pour rendre les lettres mystères sélectionnables
+            }
+        }
+
+        function switchTab(tab) {
+            isTeacherMode = (tab === 'teacher');
+            const btnStudent = document.getElementById('btn-tab-student');
+            const btnTeacher = document.getElementById('btn-tab-teacher');
+            const btnDownloadText = document.getElementById('download-text');
+            const fiche = document.getElementById('fiche-activite');
+
+            if (isTeacherMode) {
+                btnTeacher.className = "px-6 py-2 rounded-lg text-sm font-bold bg-orange-500 text-white shadow-sm transition-colors";
+                btnStudent.className = "px-6 py-2 rounded-lg text-sm font-bold bg-white text-gray-600 hover:bg-gray-100 transition-colors";
+                btnDownloadText.textContent = "Télécharger le Corrigé (PNG)";
+                fiche.classList.add('teacher-mode');
+                // En mode prof, forcer tous les mots trouvés
+                WORDS.forEach((_, i) => foundWords.add(i));
+            } else {
+                btnStudent.className = "px-6 py-2 rounded-lg text-sm font-bold bg-orange-500 text-white shadow-sm transition-colors";
+                btnTeacher.className = "px-6 py-2 rounded-lg text-sm font-bold bg-white text-gray-600 hover:bg-gray-100 transition-colors";
+                btnDownloadText.textContent = "Télécharger l'Activité (PNG)";
+                fiche.classList.remove('teacher-mode');
+                // Restaurer l'état précédent (recalcul basé sur les sélections)
+                foundWords.clear();
+                checkGameState();
+            }
+            updateUI();
+        }
+
+        function showWinModal() {
+            const modal = document.getElementById('win-modal');
+            const content = document.getElementById('win-modal-content');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            // Petit délai pour l'animation d'entrée
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closeWinModal() {
+            const modal = document.getElementById('win-modal');
+            const content = document.getElementById('win-modal-content');
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 300);
+        }
+
+        function downloadPNG() {
+            const element = document.getElementById('fiche-activite');
+            const originalBorder = element.style.border;
+            const originalShadow = element.style.boxShadow;
+            const originalRadius = element.style.borderRadius;
+            
+            // Préparation de l'élément pour une capture immaculée
+            element.style.border = 'none';
+            element.style.boxShadow = 'none';
+            element.style.borderRadius = '0';
+
+            html2canvas(element, {
+                scale: 2, // Haute Qualité
+                useCORS: true,
+                backgroundColor: '#ffffff',
+                logging: false,
+                windowWidth: 800, // Force les dimensions internes peu importe l'écran
+                windowHeight: 1131
+            }).then(canvas => {
+                // Restauration du style
+                element.style.border = originalBorder;
+                element.style.boxShadow = originalShadow;
+                element.style.borderRadius = originalRadius;
+
+                // Téléchargement
+                const link = document.createElement('a');
+                link.download = isTeacherMode ? 'Mot_Mystere_Automne_Corrige.png' : 'Mot_Mystere_Automne_Activite.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+        }
+
+        // Lancement au chargement
+        window.onload = () => {
+            initGridData();
+            renderGrid();
+            updateUI();
+        };
+    </script>
+</body>
+</html>
